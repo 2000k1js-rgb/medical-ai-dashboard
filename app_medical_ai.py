@@ -13,6 +13,21 @@ st.set_page_config(
 
 # --- Custom CSS for Mode B Highlighting ---
 def apply_theme(mode_b):
+    st.markdown("""
+        <style>
+        /* LIVE 표시등 깜빡임 애니메이션 */
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+        .live-indicator {
+            color: #FF4B4B;
+            font-weight: bold;
+            animation: pulse 1s infinite;
+        }
+        </style>
+    """, unsafe_allow_html=True)
     if mode_b:
         st.markdown("""
             <style>
@@ -26,7 +41,6 @@ def apply_theme(mode_b):
                 margin-bottom: 25px !important;
                 border: 2px solid #000000 !important;
             }
-            /* 데이터 카드 (Metric) 스타일 강제 지정 */
             [data-testid="stMetric"] {
                 background-color: #FFFFFF !important;
                 color: #000000 !important;
@@ -35,13 +49,8 @@ def apply_theme(mode_b):
                 border-left: 10px solid #FF4B4B !important;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
             }
-            /* Metric 내부 글자색 강제 (다크모드 대응) */
-            [data-testid="stMetricValue"] > div {
-                color: #FF4B4B !important;
-            }
-            [data-testid="stMetricLabel"] > div {
-                color: #333333 !important;
-            }
+            [data-testid="stMetricValue"] > div { color: #FF4B4B !important; }
+            [data-testid="stMetricLabel"] > div { color: #333333 !important; }
             </style>
             """, unsafe_allow_html=True)
     else:
@@ -57,7 +66,6 @@ def apply_theme(mode_b):
                 margin-bottom: 25px !important;
                 border: 1px solid #D0D0D0 !important;
             }
-            /* 데이터 카드 (Metric) 스타일 */
             [data-testid="stMetric"] {
                 background-color: #FFFFFF !important;
                 color: #000000 !important;
@@ -66,19 +74,13 @@ def apply_theme(mode_b):
                 border-left: 10px solid #0068C9 !important;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
             }
-            /* Metric 내부 글자색 강제 */
-            [data-testid="stMetricValue"] > div {
-                color: #0068C9 !important;
-            }
-            [data-testid="stMetricLabel"] > div {
-                color: #333333 !important;
-            }
+            [data-testid="stMetricValue"] > div { color: #0068C9 !important; }
+            [data-testid="stMetricLabel"] > div { color: #333333 !important; }
             </style>
             """, unsafe_allow_html=True)
 
 # --- Session State for History (Real-time Simulation) ---
 if 'history' not in st.session_state:
-    # Initialize with empty lists to avoid dtypes warnings
     st.session_state.history = pd.DataFrame({
         'Time': pd.Series(dtype='str'),
         'PAP': pd.Series(dtype='float'),
@@ -88,11 +90,24 @@ if 'history' not in st.session_state:
 
 # --- Sidebar: Controls ---
 st.sidebar.header("🎛️ Real-time Sensing Controls")
-st.sidebar.markdown("Adjust sliders to simulate sensor inputs.")
+live_mode = st.sidebar.toggle("Real-time Simulation Mode", value=False, help="실제 센서 데이터처럼 미세한 떨림과 자동 갱신을 활성화합니다.")
 
-pap = st.sidebar.slider("Pulmonary Artery Pressure (PAP) [mmHg]", 10, 60, 20)
-flow = st.sidebar.slider("Blood Flow Rate [cm/s]", 10, 100, 50)
-temp = st.sidebar.slider("Local Temperature [°C]", 36.0, 40.0, 37.0, step=0.1)
+pap_base = st.sidebar.slider("Pulmonary Artery Pressure (PAP) [mmHg]", 10, 60, 20)
+flow_base = st.sidebar.slider("Blood Flow Rate [cm/s]", 10, 100, 50)
+temp_base = st.sidebar.slider("Local Temperature [°C]", 36.0, 40.0, 37.0, step=0.1)
+
+# --- Logic: Apply Real-time Jitter ---
+if live_mode:
+    # 슬라이더 값에 미세한 랜덤 노이즈 추가
+    pap = pap_base + np.random.uniform(-1.0, 1.0)
+    flow = flow_base + np.random.uniform(-2.5, 2.5)
+    temp = temp_base + np.random.uniform(-0.05, 0.05)
+    st.sidebar.markdown("<p class='live-indicator'>🔴 SENSING ACTIVE</p>", unsafe_allow_html=True)
+else:
+    pap = pap_base
+    flow = flow_base
+    temp = temp_base
+    st.sidebar.markdown("<p style='color:gray;'>⚪ STANDBY</p>", unsafe_allow_html=True)
 
 # --- Logic: Dual-Mode Trigger ---
 # Mode B if PAP > 25, Flow < 30, or Temp > 38
@@ -169,3 +184,9 @@ In a production environment, this would be connected to the ESP32 serial/BLE str
 # --- Sidebar Footer ---
 st.sidebar.divider()
 st.sidebar.info("Developed for Hemodynamic Monitoring Research. Dual-mode logic ensures efficient power usage and critical event detection.")
+
+# --- Auto-refresh for Live Simulation ---
+if live_mode:
+    time.sleep(0.5)  # 0.5초마다 갱신
+    st.rerun()
+
